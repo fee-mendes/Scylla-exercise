@@ -1,0 +1,21 @@
+#!/bin/bash
+#
+# Node1
+
+docker run -it -d -v /home/felipemendes/scylla-enterprise/north/rack1/:/etc/scylla/ \
+       --name node1 scylladb/scylla-enterprise:latest --cpuset 0 --smp 1   \
+       --memory 800M
+
+# Retrieve node1 IP
+sleep 5
+SEEDIP=$(docker inspect --format='{{ .NetworkSettings.IPAddress }}' node1)
+echo "Node1 IP is: $SEEDIP"
+
+# Create node2 and node3
+docker run -it -d -v /home/felipemendes/scylla-enterprise/north/rack2/:/etc/scylla/ \
+        --name node2 scylladb/scylla-enterprise:latest --cpuset 1 --smp 1  \
+        --memory 800M --seeds=${SEEDIP} 
+
+docker run -it -d -v /home/felipemendes/scylla-enterprise/north/rack3/:/etc/scylla/ \
+        --name node3 scylladb/scylla-enterprise:latest --cpuset 2 --smp 1  \
+        --memory 800M --seeds=${SEEDIP}

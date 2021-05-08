@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# The seed node which will be replaced,
+# we need this in order to specify replace_address_first_boot
+# on the node which is taking its place.
+
+echo "Kill seed node (south1)"
+docker rm -f south1
+
+sleep 10
+
+echo "Spin up new seed node south5 :"
+docker run -it -d -v /home/felipemendes/scylla-enterprise/south/rack1/:/etc/scylla/ \
+       --name south5 -h south5 scylladb/scylla-enterprise:latest --cpuset 0 --smp 1   \
+       --memory 800M --seeds=south5 
+
+SOUTHIP=$(docker inspect --format='{{ .NetworkSettings.IPAddress }}' south5)
+
+echo "Update south3 and south4 seed node list and restart: "
+
+for i in south4 south3; do
+
+   docker exec $i sed -i "s/seeds=.*\s/seeds=${SOUTHIP} --blocked-reactor-notify-ms /g" /etc/scylla.d/docker.conf
+   echo "${i}: "
+   docker exec $i cat /etc/scylla.d/docker.conf 
+   echo "$i restart"
+   docker exec $i supervisorctl restart scylla
+   sleep 30
+done
+

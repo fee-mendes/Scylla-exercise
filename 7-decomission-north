@@ -1,0 +1,25 @@
+#!/bin/bash
+
+CQLSH_HOST=$(docker inspect --format='{{ .NetworkSettings.IPAddress }}' south1)
+export CQLSH_HOST
+
+echo "Running nodetool repair"
+
+for i in node1 node2 node3; do
+
+   docker exec $i nodetool repair -pr
+done
+
+echo "Update keyspaces"
+
+for i in mykeyspace system_auth system_distributed system_traces; do 
+    cqlsh -e "ALTER KEYSPACE $i WITH replication = { 'class' : 'NetworkTopologyStrategy', 'south' : 3};" 
+    cqlsh -e "DESC KEYSPACE $i;" | grep 'CREATE KEYSPACE'
+done
+
+echo "Decomissioning nodes"
+for i in node1 node2 node3; do
+    docker exec $i nodetool decommission
+done
+
+docker exec south1 nodetool status

@@ -1,0 +1,31 @@
+#!/bin/bash
+
+echo "Installing scylla-manager-agent"
+
+for i in node1 node2 node3 south1 south2 south3; do
+
+    docker exec $i yum -y install epel-release
+    docker exec $i curl -o /etc/yum.repos.d/scylla-manager.repo -L http://downloads.scylladb.com/rpm/centos/scylladb-manager-2.3.repo
+    docker exec $i yum -y install scylla-manager-agent
+
+done &>/dev/null
+
+AUTH_TOKEN=$(docker exec node1 scyllamgr_auth_token_gen)
+
+echo "Setting-up token $AUTH_TOKEN on all nodes:"
+
+for i in node1 node2 node3 south1 south2 south3; do
+    docker exec $i bash -c "echo auth_token: $AUTH_TOKEN >> /etc/scylla-manager-agent/scylla-manager-agent.yaml"
+    docker exec $i grep '^auth_token:' /etc/scylla-manager-agent/scylla-manager-agent.yaml
+done
+
+echo "Starting Scylla Manager agent on all nodes:"
+for i in node1 node2 node3 south1 south2 south3; do
+    docker exec -dit $i scylla-manager-agent -c /etc/scylla-manager-agent/scylla-manager-agent.yaml
+done
+
+sleep 10
+
+echo "Add cluster to Scylla Manager"
+SEEDIP=$(docker inspect --format='{{ .NetworkSettings.IPAddress }}' node1)
+docker exec -it scylla-manager sctool cluster add --host ${SEEDIP} --name docker-cluster --auth-token $AUTH_TOKEN

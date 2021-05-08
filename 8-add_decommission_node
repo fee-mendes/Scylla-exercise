@@ -1,0 +1,26 @@
+#!/bin/bash
+
+SEEDIP=$(docker inspect --format='{{ .NetworkSettings.IPAddress }}' south1)
+
+# Since we've at this point decomissioned our old DC, there is no need to specify
+# its SEEDIP, as it no longer exists.
+
+docker run -it -d -v /home/felipemendes/scylla-enterprise/south/rack2/:/etc/scylla/ \
+        --name south4 scylladb/scylla-enterprise:latest --cpuset 1 --smp 1  \
+        --memory 800M --seeds=${SEEDIP}
+
+echo Sleeping for 2 minutes so it can finish joining the cluster
+sleep 120
+
+echo "Running nodetool cleanup on all, but the newly added node." 
+for i in south1 south2 south3; do
+    docker exec $i nodetool cleanup
+done
+
+sleep 10
+
+echo "Decommissioning south2 node (not a seed)"
+docker exec south2 nodetool decommission 
+
+echo "Display final cluster status: "
+docker exec south1 nodetool status

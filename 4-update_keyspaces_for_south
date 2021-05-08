@@ -1,0 +1,21 @@
+#!/bin/bash
+
+CQLSH_HOST=172.17.0.2
+export CQLSH_HOST
+
+for i in mykeyspace system_auth system_distributed system_traces; do 
+    cqlsh -e "ALTER KEYSPACE $i WITH replication = { 'class' : 'NetworkTopologyStrategy', 'north' : 3, 'south' : 3};" 
+    cqlsh -e "DESC KEYSPACE $i;" | grep 'CREATE KEYSPACE'
+done
+
+echo "Executing nodetool rebuild"
+
+for i in south1 south2 south3; do
+    docker exec $i nodetool rebuild -- south
+done
+
+echo "Running a full cluster repair"
+
+for i in node1 node2 node3 south1 south2 south3; do
+    docker exec $i nodetool repair -pr
+done
